@@ -1,0 +1,40 @@
+name: AV Daily Fetcher
+
+on:
+  schedule:
+    # Runs every day at 13:00 UTC (10:00 Argentina time)
+    - cron: "0 13 * * *"
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run fetcher
+        env:
+          AV_API_KEY:        ${{ secrets.AV_API_KEY }}
+          GOOGLE_CREDS_JSON: ${{ secrets.GOOGLE_CREDS_JSON }}
+          # SHEET_ID: opcional, sobreescribe el ID hardcodeado en fetcher.py
+          # SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python fetcher.py
