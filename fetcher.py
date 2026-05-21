@@ -163,44 +163,66 @@ def price_at_quarter(monthly_ts: dict, fiscal_date: date) -> Optional[float]:
     return None
 
 
-def calc_per(eps: Optional[float], price: Optional[float]) -> Optional[float]:
-    if eps and eps > 0 and price and price > 0:
-        return round(price / eps, 2)
-    return None
+def eps_ttm(quarters: list, index: int) -> Optional[float]:
+    """
+    Sum of reportedEPS for the 4 quarters starting at `index`.
+    quarters[index] is the most recent quarter for this TTM window.
+    Returns None if any of the 4 values is missing or non-numeric.
+    """
+    window = quarters[index:index + 4]
+    if len(window) < 4:
+        return None
+    total = 0.0
+    for q in window:
+        eps = pf(q.get("reportedEPS"))
+        if eps is None:
+            return None
+        total += eps
+    return total if total != 0 else None
 
 
 def get_quarterly_pers(earnings: dict, monthly_ts: dict, n: int) -> list[Optional[float]]:
-    """Compute PER for the last `n` quarters. Returns list of length n."""
-    quarters = earnings.get("quarterlyEarnings", [])[:n]
+    """
+    Compute trailing P/E for each of the last n quarters.
+    Each PER uses TTM EPS (sum of 4 quarters) to match Yahoo/Dataroma methodology:
+        PER Q(n-i) = price_at_quarter(i) / (EPS[i] + EPS[i+1] + EPS[i+2] + EPS[i+3])
+    Needs at least n+3 quarters of EPS data (8 for n=5).
+    """
+    quarters = earnings.get("quarterlyEarnings", [])
     result   = []
-    for q in quarters:
-        eps = pf(q.get("reportedEPS"))
+    for i in range(n):
         try:
-            fd = datetime.strptime(q["fiscalDateEnding"], "%Y-%m-%d").date()
-        except (KeyError, ValueError):
+            fd = datetime.strptime(quarters[i]["fiscalDateEnding"], "%Y-%m-%d").date()
+        except (KeyError, ValueError, IndexError):
             result.append(None)
             continue
+        ttm   = eps_ttm(quarters, i)
         price = price_at_quarter(monthly_ts, fd)
-        result.append(calc_per(eps, price))
+        if ttm and ttm > 0 and price and price > 0:
+            result.append(round(price / ttm, 2))
+        else:
+            result.append(None)
     while len(result) < n:
         result.append(None)
     return result
 
 
 def get_per_hist_3a(earnings: dict, monthly_ts: dict) -> Optional[float]:
-    """Average PER over last 12 quarters (3 years)."""
-    quarters = earnings.get("quarterlyEarnings", [])[:12]
+    """
+    Average trailing P/E over last 12 quarters (3 years).
+    Each quarter uses TTM EPS, same as Yahoo methodology.
+    """
+    quarters = earnings.get("quarterlyEarnings", [])
     pers = []
-    for q in quarters:
-        eps = pf(q.get("reportedEPS"))
+    for i in range(12):
         try:
-            fd = datetime.strptime(q["fiscalDateEnding"], "%Y-%m-%d").date()
-        except (KeyError, ValueError):
+            fd = datetime.strptime(quarters[i]["fiscalDateEnding"], "%Y-%m-%d").date()
+        except (KeyError, ValueError, IndexError):
             continue
+        ttm   = eps_ttm(quarters, i)
         price = price_at_quarter(monthly_ts, fd)
-        p = calc_per(eps, price)
-        if p is not None:
-            pers.append(p)
+        if ttm and ttm > 0 and price and price > 0:
+            pers.append(price / ttm)
     return round(sum(pers) / len(pers), 2) if pers else None
 
 
