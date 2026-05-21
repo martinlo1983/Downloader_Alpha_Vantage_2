@@ -76,21 +76,23 @@ def ensure_out_header(out_ws):
 
 # ── Status sheet ──────────────────────────────────────────────────────────────
 def load_status(status_ws) -> dict:
-    records = status_ws.get_all_records()
+    # Use get_all_values() instead of get_all_records() to avoid
+    # GSpreadException when header row has duplicate or missing columns.
+    all_rows = status_ws.get_all_values()
     out = {}
-    for r in records:
-        t = str(r.get("TICKER", "")).strip().upper()
-        if not t:
+    for row in all_rows[1:]:   # skip header
+        if not row or not row[0].strip():
             continue
-        raw = str(r.get("LAST_UPDATED", ""))
+        t   = row[0].strip().upper()
+        raw = row[1] if len(row) > 1 else ""
         try:
             last = datetime.strptime(raw, "%Y-%m-%d").date()
         except ValueError:
             last = date(2000, 1, 1)
         out[t] = {
             "last_updated": last,
-            "status":       str(r.get("STATUS", "")),
-            "errors":       int(r.get("CONSECUTIVE_ERRORS", 0) or 0),
+            "status":       row[2] if len(row) > 2 else "",
+            "errors":       int(row[3]) if len(row) > 3 and row[3].isdigit() else 0,
         }
     return out
 
