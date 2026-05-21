@@ -139,6 +139,13 @@ def pf(val) -> Optional[float]:
         return None
 
 
+def fmt(val: Optional[float]) -> str:
+    """Always use dot as decimal separator, regardless of system locale."""
+    if val is None:
+        return ""
+    return "{:.2f}".format(val)
+
+
 # ── PER calculation ───────────────────────────────────────────────────────────
 def price_at_quarter(monthly_ts: dict, fiscal_date: date) -> Optional[float]:
     """Closing price for the month of fiscal_date or next available month."""
@@ -204,9 +211,9 @@ def build_rows(ticker: str, earnings: dict, monthly_ts: dict, overview: dict) ->
 
     rows = []
     for label, per in zip(["Q(n)", "Q(n-1)", "Q(n-2)", "Q(n-3)", "Q(n-4)"], pers):
-        rows.append([today, ticker, "PER",         label,  per    if per    is not None else ""])
-    rows.append(    [today, ticker, "PER_HIST_3A", "Inst", hist3a if hist3a is not None else ""])
-    rows.append(    [today, ticker, "PEG 5A",      "Q(n)", peg    if peg    is not None else ""])
+        rows.append([today, ticker, "PER",         label,  fmt(per)])
+    rows.append(    [today, ticker, "PER_HIST_3A", "Inst", fmt(hist3a)])
+    rows.append(    [today, ticker, "PEG 5A",      "Q(n)", fmt(peg)])
     return rows   # exactly 7
 
 
